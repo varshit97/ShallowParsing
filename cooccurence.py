@@ -25,7 +25,6 @@ for word in words_used[:WIN_SIZE]:
     buffer.append(word)
 word_vector = np.array([0 for _ in range(VOCAB_SIZE)])
 for window_word in buffer:
-    # print window_word
     window_word_idx = index[window_word]
     word_vector[window_word_idx] = 1
 for i, word in enumerate(words_used[WIN_SIZE/2:-WIN_SIZE/2]):
@@ -51,6 +50,8 @@ class HMM:
 
     def __init__(self):
         self.transition_prob = None
+        self.labels = None
+        self.emission_obj = None
 
     def fit(self, seq1, seq2, emission_obj):
 
@@ -58,7 +59,9 @@ class HMM:
         assert 'get_emission_prob' in [method for method in dir(emission_obj) if callable(getattr(emission_obj, method))]
         assert len(seq1) == len(seq2)
         
-        self.transition_prob = {}#np.array([[0 for __ in range(len(seq2))] for _ in range(len(seq2))])
+        self.emission_obj = emission_obj
+        self.transition_prob = {}  #Instead of dictionary implement it id wise for better performance
+                                   #np.array([[0 for __ in range(len(seq2))] for _ in range(len(seq2))])
         count = {}
         for i, label in enumerate(seq2[:-1]):
             transition = tuple((label, seq2[i+1]))
@@ -76,7 +79,41 @@ class HMM:
             count[seq2[-1]] = 1
         for trans in self.transition_prob:
             self.transition_prob[trans] = float(self.transition_prob[trans])/float(count[trans[0]])
-            print trans, self.transition_prob[trans]
+        self.labels = count.keys()
+    
+    def predict(self, seq):
+        prob_prev = [1 for _ in range(len(self.labels))]
+        back_track_mat = []
+        
+        for w in seq:
+            back_track_vec = []
+            prob_cur = []
+            for l in self.labels:
+                emission_prob = self.emission_obj.get_emission_prob(w,l)
+                selected_transition = None
+                prob = -1
+                for l_prev in self.labels:
+                    transition = tuple((l_prev, l))
+                    transition_prob = 0
+                    if transition in self.transition_prob:
+                        transition_prob = self.transition_prob[transition]
+                    label_prob = emission_prob * transition_prob * prob_prev[l_prev]
+                    if label_prob > prob:
+                        prob = label_prob
+                        selected_transition = l_prev
+                back_track_vec.append(selected_transition)
+                prob_cur.append(prob)
+            back_track_mat.append(back_track_vec)
+            prob_prev = prob_cur[:]
+        idx = prob_prev.index(max(prob_prev))
+        labeled_seq = [idx]
+        
+        for b in reversed(back_track_mat):
+            idx = b[idx]
+            labeled_seq = [idx] + labeled_seq
+        labeled_seq =  labeled_seq[1:]
+        
+        return labeled_seq
 
 class w2k_emission:
 
@@ -94,4 +131,6 @@ indexed_seq = [index[w] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 cluster_tag = [clusters[index[w]] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 w2k = w2k_emission(cooccurrence_matrix, cluster_means)
 
-w2k_hmm = HMM().fit(indexed_seq, cluster_tag, w2k)
+w2k_hmm = HMM()
+w2k_hmm.fit(indexed_seq, cluster_tag, w2k)
+w2k_hmm.predict(indexed_seq[:10])

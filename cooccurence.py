@@ -6,7 +6,7 @@ index = {}
 rev_index = ['']
 index[''] = 0
 
-VOCAB_SIZE = 100
+VOCAB_SIZE = 2000
 WIN_SIZE = 20
 
 words_used = ['' for _ in range(WIN_SIZE/2)]
@@ -84,7 +84,8 @@ class HMM:
     def predict(self, seq):
         prob_prev = [1 for _ in range(len(self.labels))]
         back_track_mat = []
-        
+
+        import numpy as np
         for w in seq:
             back_track_vec = []
             prob_cur = []
@@ -97,7 +98,7 @@ class HMM:
                     transition_prob = 0
                     if transition in self.transition_prob:
                         transition_prob = self.transition_prob[transition]
-                    label_prob = emission_prob * transition_prob * prob_prev[l_prev]
+                    label_prob = np.log(1+emission_prob) + np.log(1+transition_prob) + np.log(1+prob_prev[l_prev])
                     if label_prob > prob:
                         prob = label_prob
                         selected_transition = l_prev
@@ -145,13 +146,14 @@ cluster_tag = [clusters[index[w]] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 w2k = w2k_emission(cooccurrence_matrix, cluster_means)
 w2k_hmm = HMM()
 w2k_hmm.fit(indexed_seq, cluster_tag, w2k)
-cluster_seq = w2k_hmm.predict(indexed_seq[:10])
+cluster_seq = w2k_hmm.predict(indexed_seq[:100])
 
 from nltk import pos_tag
 tagged_words = pos_tag(words_used[WIN_SIZE/2:-WIN_SIZE/2])
 #Calculate tag embeddings as mean of word embeddings
 t_embed = []
 t_index = {}
+rev_t_index = []
 t_count = []
 ind = 0
 for word, tag in tagged_words:
@@ -163,6 +165,7 @@ for word, tag in tagged_words:
         t_count[t_id]+=1
     else:
         t_index[tag] = ind
+        rev_t_index.append(tag)
         t_embed.append(w_embed)
         t_count.append(1)
         ind+=1
@@ -174,4 +177,6 @@ k2t = k2t_emission(t_embed, cluster_means)
 k2t_hmm = HMM()
 k2t_hmm.fit(cluster_tag, t_indexed_seq, k2t)
 final_tag_seq = k2t_hmm.predict(cluster_seq)
-print final_tag_seq
+
+print words_used[WIN_SIZE:100]
+print [rev_t_index[t] for t in final_tag_seq]

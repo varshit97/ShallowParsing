@@ -6,7 +6,7 @@ index = {}
 rev_index = ['']
 index[''] = 0
 
-VOCAB_SIZE = 2000
+VOCAB_SIZE = 1000
 WIN_SIZE = 20
 
 words_used = ['' for _ in range(WIN_SIZE/2)]
@@ -85,7 +85,7 @@ class HMM:
         prob_prev = [1 for _ in range(len(self.labels))]
         back_track_mat = []
 
-        import numpy as np
+        import math
         for w in seq:
             back_track_vec = []
             prob_cur = []
@@ -98,13 +98,15 @@ class HMM:
                     transition_prob = 0
                     if transition in self.transition_prob:
                         transition_prob = self.transition_prob[transition]
-                    label_prob = np.log(1+emission_prob) + np.log(1+transition_prob) + np.log(1+prob_prev[l_prev])
+                    label_prob = -math.log(1+emission_prob) + math.log(1+transition_prob) + math.log(1+prob_prev[l_prev])
+                    #label_prob = (1/emission_prob)*transition_prob*prob_prev[l_prev]
                     if label_prob > prob:
                         prob = label_prob
                         selected_transition = l_prev
                 back_track_vec.append(selected_transition)
                 prob_cur.append(prob)
             back_track_mat.append(back_track_vec)
+            #print prob_prev
             prob_prev = prob_cur[:]
         idx = prob_prev.index(max(prob_prev))
         labeled_seq = [idx]
@@ -178,5 +180,5 @@ k2t_hmm = HMM()
 k2t_hmm.fit(cluster_tag, t_indexed_seq, k2t)
 final_tag_seq = k2t_hmm.predict(cluster_seq)
 
-print words_used[WIN_SIZE:100]
+print words_used[WIN_SIZE/2:WIN_SIZE/2+100]
 print [rev_t_index[t] for t in final_tag_seq]

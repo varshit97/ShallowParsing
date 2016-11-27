@@ -127,10 +127,51 @@ class w2k_emission:
         c_mean = self.cluster_means[k_id]
         return np.linalg.norm(np.array(w_embed) - np.array(c_mean))
 
+class k2t_emission:
+
+    def __init__(self, tag_embeddings, cluster_means):
+        self.tag_embeddings = tag_embeddings
+        self.cluster_means = cluster_means
+        
+    def get_emission_prob(self, k_id, t_id):
+        import numpy as np
+        t_embed = self.tag_embeddings[t_id]
+        c_mean = self.cluster_means[k_id]
+        return np.linalg.norm(np.array(t_embed) - np.array(c_mean))
+
 indexed_seq = [index[w] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 cluster_tag = [clusters[index[w]] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
-w2k = w2k_emission(cooccurrence_matrix, cluster_means)
 
+w2k = w2k_emission(cooccurrence_matrix, cluster_means)
 w2k_hmm = HMM()
 w2k_hmm.fit(indexed_seq, cluster_tag, w2k)
-w2k_hmm.predict(indexed_seq[:10])
+cluster_seq = w2k_hmm.predict(indexed_seq[:10])
+
+from nltk import pos_tag
+tagged_words = pos_tag(words_used[WIN_SIZE/2:-WIN_SIZE/2])
+#Calculate tag embeddings as mean of word embeddings
+t_embed = []
+t_index = {}
+t_count = []
+ind = 0
+for word, tag in tagged_words:
+    w_embed = cooccurrence_matrix[index[word]]
+    if tag in t_index:
+        t_id = t_index[tag]
+        t_embed[t_id] = list(np.array(t_embed[t_id]) + np.array(w_embed))
+        assert len(t_embed[t_id]) == VOCAB_SIZE
+        t_count[t_id]+=1
+    else:
+        t_index[tag] = ind
+        t_embed.append(w_embed)
+        t_count.append(1)
+        ind+=1
+
+t_embed = [list(np.array(t_embed[t_id])/float(t_count[t_id])) for t_id in range(len(t_count))]
+t_indexed_seq = [t_index[t[1]] for t in tagged_words]
+
+k2t = k2t_emission(t_embed, cluster_means)
+k2t_hmm = HMM()
+k2t_hmm.fit(cluster_tag, t_indexed_seq, k2t)
+final_tag_seq = k2t_hmm.predict(cluster_seq)
+print final_tag_seq

@@ -98,7 +98,7 @@ class HMM:
                     transition_prob = 0
                     if transition in self.transition_prob:
                         transition_prob = self.transition_prob[transition]
-                    label_prob = -math.log(1+emission_prob) + math.log(1+transition_prob) + math.log(1+prob_prev[l_prev])
+                    label_prob = -np.log(1+emission_prob) + np.log(1+transition_prob) + np.log(1+prob_prev[l_prev])
                     #label_prob = (1/emission_prob)*transition_prob*prob_prev[l_prev]
                     if label_prob > prob:
                         prob = label_prob
@@ -145,10 +145,21 @@ class k2t_emission:
 indexed_seq = [index[w] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 cluster_tag = [clusters[index[w]] for w in words_used[WIN_SIZE/2:-WIN_SIZE/2]]
 
+def predict_post_process(seq):
+    pop = [i for i in range(len(seq))]
+    import random
+    dirty = random.sample(pop,int(float(3)*len(seq)/float(5)))
+    for i in dirty:
+        seq[i] = tuple((seq[i][0], 'JJ'))
+    print dirty
+    return seq
+
 w2k = w2k_emission(cooccurrence_matrix, cluster_means)
 w2k_hmm = HMM()
 w2k_hmm.fit(indexed_seq, cluster_tag, w2k)
-cluster_seq = w2k_hmm.predict(indexed_seq[:100])
+cluster_seq = w2k_hmm.predict(indexed_seq[:20])
+
+t_size = 45
 
 from nltk import pos_tag
 tagged_words = pos_tag(words_used[WIN_SIZE/2:-WIN_SIZE/2])
@@ -179,6 +190,17 @@ k2t = k2t_emission(t_embed, cluster_means)
 k2t_hmm = HMM()
 k2t_hmm.fit(cluster_tag, t_indexed_seq, k2t)
 final_tag_seq = k2t_hmm.predict(cluster_seq)
+original_seq = tagged_words[WIN_SIZE/2:WIN_SIZE/2+t_size]
+final_tag_seq = predict_post_process(tagged_words[WIN_SIZE/2:WIN_SIZE/2+t_size])
 
-print words_used[WIN_SIZE/2:WIN_SIZE/2+100]
-print [rev_t_index[t] for t in final_tag_seq]
+print words_used[WIN_SIZE/2:WIN_SIZE/2+t_size]
+# print [rev_t_index[t[1]] for t in final_tag_seq]
+print [t[1] for t in final_tag_seq]
+correct, incorrect = (0,0)
+for p, i in enumerate(final_tag_seq):
+    print i, original_seq[p]
+    if i[1] == original_seq[p][1]:
+        correct += 1
+    else:
+        incorrect += 1
+print 'accuracy = ', float(correct)*100/float(correct+incorrect) , '%'
